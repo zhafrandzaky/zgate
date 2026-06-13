@@ -1,0 +1,397 @@
+// ZGate — Prisma schema (initial)
+// Multi-user isolation: every user-scoped table carries userId + @@index([userId]).
+// See AGENTS.md §5 and docs/ARCHITECTURE.md §8.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OtpType {
+  REGISTER
+  RESET
+}
+
+enum MemoryScope {
+  GLOBAL
+  PROJECT
+  SESSION
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core user + auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  isVerified   Boolean   @default(false)
+  isBanned     Boolean   @default(false)
+  bannedAt     DateTime?
+  bannedReason String?
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  otpCodes             OtpCode[]
+  sessions             Session[]
+  apiKeys              ApiKey[]
+  providerConnections  ProviderConnection[]
+  providerNodes        ProviderNode[]
+  modelAliases         ModelAlias[]
+  combos               Combo[]
+  usageEntries         UsageEntry[]
+  settings             Settings?
+  customModels         CustomModel[]
+  disabledModels       DisabledModel[]
+  modelTestResults     ModelTestResult[]
+  auditLogs            UserAuditLog[]
+  webhooks             Webhook[]
+  webhookDeliveries    WebhookDelivery[]
+  proxyPools           ProxyPool[]
+  memories             UserMemory[]
+  conversationSessions ConversationSession[]
+  adminLogs            AdminLog[]            @relation("AdminActor")
+}
+
+model OtpCode {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code           String
+  type           OtpType
+  expiresAt      DateTime
+  attempts       Int       @default(0)
+  suspendedUntil DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, type])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  lastUsedAt DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Providers & models
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ProviderConnection {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider           String
+  authType           String    @default("apikey") // oauth | apikey | cookie
+  name               String
+  priority           Int       @default(0)
+  isActive           Boolean   @default(true)
+  accessToken        String? // encrypted at rest (TASK-011)
+  refreshToken       String? // encrypted at rest (TASK-011)
+  apiKey             String? // encrypted at rest (TASK-011)
+  baseUrl            String?
+  credentials        Json? // encrypted at rest (TASK-011)
+  metadata           Json? // per-connection settings (e.g. caveman mode)
+  cachedModels       Json?
+  cachedModelsAt     DateTime?
+  modelFetchStrategy String    @default("static") // auto | static | compatible
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  providerNodes    ProviderNode[]
+  customModels     CustomModel[]
+  modelTestResults ModelTestResult[]
+
+  @@index([userId])
+}
+
+model ProviderNode {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connectionId String?
+  connection   ProviderConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  name         String
+  baseUrl      String
+  apiKey       String? // encrypted at rest (TASK-011)
+  format       String              @default("openai") // openai | anthropic | gemini | kiro | cursor | vertex | commandcode
+  createdAt    DateTime            @default(now())
+
+  @@index([userId])
+  @@index([connectionId])
+}
+
+model ModelAlias {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alias     String
+  target    String // provider/model
+  createdAt DateTime @default(now())
+
+  @@unique([userId, alias])
+  @@index([userId])
+}
+
+model Combo {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  models    Json // ordered array of model strings
+  strategy  String   @default("fallback") // fallback | round-robin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model CustomModel {
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerConnectionId String
+  providerConnection   ProviderConnection @relation(fields: [providerConnectionId], references: [id], onDelete: Cascade)
+  modelId              String
+  displayName          String
+  kind                 String             @default("llm") // llm | image | tts | embedding | stt
+  createdAt            DateTime           @default(now())
+
+  @@index([userId])
+  @@index([providerConnectionId])
+}
+
+model DisabledModel {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerAlias String
+  modelId       String
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, providerAlias, modelId])
+  @@index([userId])
+}
+
+model ModelTestResult {
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerConnectionId String
+  providerConnection   ProviderConnection @relation(fields: [providerConnectionId], references: [id], onDelete: Cascade)
+  modelId              String
+  status               String // success | failed | slow
+  responseMs           Int?
+  error                String?
+  testedAt             DateTime           @default(now())
+
+  @@index([userId])
+  @@index([providerConnectionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Usage, pricing, settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UsageEntry {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  model             String
+  promptTokens      Int      @default(0)
+  completionTokens  Int      @default(0)
+  costUsd           Float    @default(0)
+  connectionId      String?
+  fallbackCount     Int      @default(0)
+  fallbackProviders Json? // ordered array of providers used during fallback
+  timestamp         DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, timestamp])
+}
+
+model Pricing {
+  id               String   @id @default(cuid())
+  provider         String
+  model            String
+  inputPricePer1M  Float
+  outputPricePer1M Float
+  updatedAt        DateTime @updatedAt
+
+  @@unique([provider, model])
+}
+
+model Settings {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rtkEnabled        Boolean  @default(true)
+  maxCostPerRequest Float?
+  maxCostPerDay     Float?
+  maxCostPerMonth   Float?
+  memoryEnabled     Boolean  @default(true)
+  locale            String   @default("en")
+  preferences       Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhooks, proxy pools, audit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Webhook {
+  id         String            @id @default(cuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url        String
+  secret     String // HMAC signing key
+  events     Json
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+}
+
+model WebhookDelivery {
+  id           String    @id @default(cuid())
+  webhookId    String
+  webhook      Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payload      Json
+  status       String    @default("pending") // success | failed | pending
+  statusCode   Int?
+  error        String?
+  attemptCount Int       @default(0)
+  nextRetryAt  DateTime?
+  createdAt    DateTime  @default(now())
+  deliveredAt  DateTime?
+
+  @@index([webhookId])
+  @@index([userId])
+}
+
+model ProxyPool {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  proxyUrl    String
+  noProxy     String?
+  type        String   @default("http") // http | vercel | cloudflare | deno
+  isActive    Boolean  @default(true)
+  strictProxy Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model UserAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  metadata  Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AdminLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      User     @relation("AdminActor", fields: [adminId], references: [id], onDelete: Cascade)
+  action     String
+  targetId   String?
+  targetType String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Memory system (pgvector) — see docs/ARCHITECTURE.md §9, TASK-022
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UserMemory {
+  id         String               @id @default(cuid())
+  userId     String
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope      MemoryScope
+  workingDir String?
+  sessionId  String?
+  session    ConversationSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  content    String
+  embedding  Unsupported("vector(1536)")?
+  source     String?
+  confidence Float                @default(1.0)
+  useCount   Int                  @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([userId, scope])
+  @@index([userId, workingDir])
+  @@index([userId, sessionId])
+}
+
+model ConversationSession {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workingDir   String?
+  summary      String?
+  messageCount Int          @default(0)
+  tokenCount   Int          @default(0)
+  provider     String?
+  model        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  endedAt      DateTime?
+  memories     UserMemory[]
+
+  @@index([userId])
+}

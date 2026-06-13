@@ -1,0 +1,18 @@
+[package]
+name = "rtk"
+version = "0.1.0"
+edition = "2021"
+description = "ZGate RTK engine — compresses tool_result blocks in input messages. Full implementation in TASK-004."
+
+[[bin]]
+name = "rtk"
+path = "src/main.rs"
+
+[lib]
+name = "rtk"
+path = "src/lib.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

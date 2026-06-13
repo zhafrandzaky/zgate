@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+target
+bun.lock
+prisma/migrations
+rtk/target
+*.md
