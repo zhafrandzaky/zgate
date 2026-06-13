@@ -22,6 +22,7 @@ There are no plans or tiers at launch — every user is equal. A personal cost b
 - **RTK Token Saver** — hemat 20-40% token input, output AI tetap 100% sama (hanya `tool_result` di input yang dikompres).
 - **Persistent AI Memory** — ingat konteks lintas sesi dengan 3 scope (global / project / session) lewat pgvector semantic search.
 - **40+ Provider Support** — Claude, DeepSeek, Gemini, OpenAI, Kiro, Cursor, dan banyak lagi.
+- **Auto-updating Model List** — model list selalu fresh dari provider API (Claude, OpenAI, DeepSeek, Groq, OpenRouter, dll), tidak perlu update manual. Provider yang tidak support auto-fetch tetap pakai built-in static list sebagai fallback.
 - **Combo System** — urutan fallback drag-drop: PRIMARY -> FALLBACK 1 -> FALLBACK 2.
 - **Multi-User SaaS** — tiap user punya provider connections, combos, dan API keys sendiri, terisolasi penuh.
 - **Real-time Dashboard** — usage stats, provider health, dan push update via WebSocket.
