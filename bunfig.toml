@@ -1,0 +1,4 @@
+[test]
+# Provides deterministic env before any test imports src/lib/env.ts (which
+# validates required secrets at module load). See scripts/test-setup.ts.
+preload = ["./scripts/test-setup.ts"]
