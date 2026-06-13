@@ -4,5 +4,6 @@ dist
 target
 bun.lock
 prisma/migrations
+src/generated
 rtk/target
 *.md

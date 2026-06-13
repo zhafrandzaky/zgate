@@ -156,7 +156,8 @@ depend on healthy state.
 ```
 Stage 1 (rust:latest)    → cargo build --release rtk/        → /rtk binary
 Stage 2 (oven/bun)       → bun install && bunx prisma generate && bun run build
-Stage 3 (oven/bun slim)  → copy .next standalone + rtk binary + prisma engine
+Stage 3 (oven/bun slim)  → copy .next standalone + rtk binary + Prisma client/CLI
+                           (Rust-free prisma-client — no query-engine binary)
                            CMD: migrate deploy && start
 ```
 

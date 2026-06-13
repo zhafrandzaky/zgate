@@ -15,6 +15,11 @@ FROM oven/bun:1 AS app-build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV SKIP_ENV_VALIDATION=1
+# Prisma 7 no longer auto-loads .env and prisma.config.ts resolves DATABASE_URL via
+# env() (SKIP_ENV_VALIDATION only bypasses src/lib/env.ts, not the Prisma config), so
+# `prisma generate` needs a value present. This placeholder is build-only — the real
+# DATABASE_URL is injected at runtime in the final stage.
+ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 
 COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile
@@ -42,11 +47,16 @@ COPY --from=app-build --chown=zgate:zgate /app/.next/standalone ./
 COPY --from=app-build --chown=zgate:zgate /app/.next/static ./.next/static
 COPY --from=app-build --chown=zgate:zgate /app/public ./public
 
-# Prisma schema + CLI + generated client (for migrate deploy at startup)
+# Prisma schema + config + CLI (for `prisma migrate deploy` at startup).
+# Prisma 7's prisma-client generator emits to src/generated/prisma (compiled into
+# the Next standalone bundle), so there is no node_modules/.prisma to copy. The
+# migrate step loads prisma.config.ts, which imports dotenv and reads DATABASE_URL
+# from the runtime environment.
 COPY --from=app-build --chown=zgate:zgate /app/prisma ./prisma
-COPY --from=app-build --chown=zgate:zgate /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=app-build --chown=zgate:zgate /app/prisma.config.ts ./prisma.config.ts
 COPY --from=app-build --chown=zgate:zgate /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=app-build --chown=zgate:zgate /app/node_modules/prisma ./node_modules/prisma
+COPY --from=app-build --chown=zgate:zgate /app/node_modules/dotenv ./node_modules/dotenv
 
 # RTK binary
 COPY --from=rtk-build --chown=zgate:zgate /build/rtk/target/release/rtk ./rtk/target/release/rtk

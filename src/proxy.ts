@@ -9,7 +9,8 @@ import {
 } from "@/src/lib/auth";
 
 /**
- * Root middleware — the first security boundary (docs/ARCHITECTURE.md §19).
+ * Root proxy (formerly `middleware`, renamed in Next.js 16) — the first
+ * security boundary (docs/ARCHITECTURE.md §19).
  *
  * Runs on the Edge, so it only does work that is safe there: stateless JWT
  * verification (via `jose`) for the dashboard and admin areas. It cannot touch
@@ -54,7 +55,7 @@ function unauthorizedApi(): NextResponse {
   );
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // Admin area — admin JWT (separate secret) + ADMIN role.

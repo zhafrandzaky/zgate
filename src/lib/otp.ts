@@ -1,5 +1,5 @@
 import { randomInt, timingSafeEqual } from "node:crypto";
-import type { OtpType } from "@prisma/client";
+import type { OtpType } from "@/src/generated/prisma/client";
 import { env } from "@/src/lib/env";
 import { redis } from "@/src/lib/redis";
 import { prisma } from "@/src/lib/db";
