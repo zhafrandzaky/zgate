@@ -59,6 +59,10 @@ jobs:
       - run: cargo build --release
         working-directory: rtk
       - run: bunx prisma generate
+      - name: Enable pgvector extension
+        run: psql postgresql://zgate:zgate@localhost:5432/zgate -c "CREATE EXTENSION IF NOT EXISTS vector;"
+        env:
+          PGPASSWORD: zgate
       - run: bunx prisma migrate deploy
       - run: bun test
 
