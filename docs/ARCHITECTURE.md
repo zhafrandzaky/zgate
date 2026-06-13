@@ -1,7 +1,7 @@
 # ZGate — Architecture
 
 > Universal AI Gateway & Router — hosted multi-user SaaS di `zgate.ziron.dev`.
-> Full reimplementasi 9Router dengan stack modern, TypeScript-first, multi-user.
+> Full implementasi dengan stack modern, TypeScript-first, multi-user.
 
 ---
 
