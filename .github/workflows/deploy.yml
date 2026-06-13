@@ -1,0 +1,25 @@
+name: Deploy
+
+# Deploys ZGate to Fly.io on every push to main.
+#
+# Prerequisite: set FLY_API_TOKEN in the GitHub repository under
+# Settings -> Secrets and variables -> Actions -> New repository secret.
+# Generate a token with: fly tokens create deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

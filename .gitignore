@@ -1,0 +1,33 @@
+# ZGate local agent workspace
+AGENTS.md
+.agents/
+
+# Runtime & build
+.env
+.env.local
+.env.*.local
+node_modules/
+.next/
+dist/
+target/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Prisma
+prisma/migrations/**/migration_lock.toml
+
+# Bootstrap and temporary root files
+BOOTSTRAP.md
+UI-UX-DESIGN.md
+logo.svg
