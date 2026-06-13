@@ -47,8 +47,18 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://zgate:zgate@localhost:5432/zgate
-      REDIS_URL: redis://localhost:6379
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_ADMIN_SECRET: ${{ secrets.JWT_ADMIN_SECRET }}
+      API_KEY_SECRET: ${{ secrets.API_KEY_SECRET }}
+      MACHINE_ID_SALT: ${{ secrets.MACHINE_ID_SALT }}
+      CREDENTIALS_ENCRYPT_KEY: ${{ secrets.CREDENTIALS_ENCRYPT_KEY }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      MEMORY_ENCRYPT_KEY: ${{ secrets.MEMORY_ENCRYPT_KEY }}
+      PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -60,15 +70,25 @@ jobs:
         working-directory: rtk
       - run: bunx prisma generate
       - name: Enable pgvector extension
-        run: psql postgresql://zgate:zgate@localhost:5432/zgate -c "CREATE EXTENSION IF NOT EXISTS vector;"
-        env:
-          PGPASSWORD: zgate
+        run: psql ${{ secrets.DATABASE_URL }} -c "CREATE EXTENSION IF NOT EXISTS vector;"
       - run: bunx prisma migrate deploy
       - run: bun test
 
   build:
     runs-on: ubuntu-latest
     needs: test
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_ADMIN_SECRET: ${{ secrets.JWT_ADMIN_SECRET }}
+      API_KEY_SECRET: ${{ secrets.API_KEY_SECRET }}
+      MACHINE_ID_SALT: ${{ secrets.MACHINE_ID_SALT }}
+      CREDENTIALS_ENCRYPT_KEY: ${{ secrets.CREDENTIALS_ENCRYPT_KEY }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      MEMORY_ENCRYPT_KEY: ${{ secrets.MEMORY_ENCRYPT_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
