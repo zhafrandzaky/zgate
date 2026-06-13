@@ -22,7 +22,13 @@ export class GithubCopilotExecutor extends BaseExecutor {
 
   buildUrl(req: ExecutorRequest): string {
     const base = req.connection.baseUrl?.trim() || COPILOT_DEFAULT_BASE;
-    return `${trimTrailingSlash(base)}/chat/completions`;
+    // Copilot also exposes a Responses API at /responses (docs/PROVIDERS.md
+    // github "Responses URL"). Chat Completions is the default; opt into
+    // /responses via providerSpecificData.api === "responses". (A Responses-
+    // format variant pairs with the openai-responses translator.)
+    const psd = req.connection.credentials.providerSpecificData ?? {};
+    const path = psd.api === "responses" ? "/responses" : "/chat/completions";
+    return `${trimTrailingSlash(base)}${path}`;
   }
 
   protected override baseHeaders(req: ExecutorRequest): Record<string, string> {

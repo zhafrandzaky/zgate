@@ -28,11 +28,8 @@ import { AzureExecutor } from "@/open-sse/executors/azure";
 import { QoderExecutor } from "@/open-sse/executors/qoder";
 import { XiaomiTokenplanExecutor } from "@/open-sse/executors/xiaomiTokenplan";
 import { CommandCodeExecutor } from "@/open-sse/executors/commandcode";
-import {
-  OllamaExecutor,
-  OLLAMA_CLOUD_BASE,
-  OLLAMA_LOCAL_BASE,
-} from "@/open-sse/executors/ollama";
+import { CloudflareAiExecutor } from "@/open-sse/executors/cloudflareAi";
+import { OllamaExecutor, OLLAMA_CLOUD_BASE, OLLAMA_LOCAL_BASE } from "@/open-sse/executors/ollama";
 import { GrokWebExecutor, PerplexityWebExecutor } from "@/open-sse/executors/webReverse";
 import { providerEndpoints } from "@/open-sse/config/providerEndpoints";
 
@@ -49,6 +46,7 @@ function buildSpecializedExecutors(): BaseExecutor[] {
     new VertexExecutor(),
     new AntigravityExecutor(),
     new AzureExecutor(),
+    new CloudflareAiExecutor(),
     new QoderExecutor(),
     new XiaomiTokenplanExecutor(),
     new CommandCodeExecutor(),
@@ -101,7 +99,10 @@ export function getExecutor(provider: string): BaseExecutor | undefined {
  * {@link DefaultExecutor} for custom "compatible" nodes (user-defined baseUrl,
  * OpenAI or Anthropic format). Never returns undefined.
  */
-export function resolveExecutor(provider: string, baseUrlFormat?: "openai" | "anthropic"): BaseExecutor {
+export function resolveExecutor(
+  provider: string,
+  baseUrlFormat?: "openai" | "anthropic",
+): BaseExecutor {
   const known = REGISTRY.get(provider);
   if (known) return known;
   // Compatible / unknown node: build a DefaultExecutor against the connection

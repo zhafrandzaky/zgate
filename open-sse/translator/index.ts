@@ -14,7 +14,7 @@
  */
 
 import { Format, canonicalFormat, isFormat } from "./formats";
-import { normalizeRequest } from "./helpers/openaiHelper";
+import { normalizeRequest, stripReasoningContent } from "./helpers/openaiHelper";
 import { resolveContext } from "./streaming";
 import type {
   OpenAIChatRequest,
@@ -33,6 +33,7 @@ import * as reqOllama from "./request/openai-to-ollama";
 import * as reqVertex from "./request/openai-to-vertex";
 import * as reqCommandCode from "./request/openai-to-commandcode";
 import * as reqResponses from "./request/openai-responses";
+import * as reqWebReverse from "./request/web-reverse";
 // Request decoders: client format -> OpenAI pivot.
 import * as reqFromClaude from "./request/claude-to-openai";
 import * as reqFromGemini from "./request/gemini-to-openai";
@@ -51,6 +52,7 @@ import * as resResponses from "./response/openai-responses";
 import * as resToClaude from "./response/openai-to-claude";
 import * as resToGemini from "./response/openai-to-gemini";
 import * as resToAntigravity from "./response/openai-to-antigravity";
+import * as resWebReverse from "./response/web-reverse";
 
 // ----------------------------------------------------------------------------
 // Translator contracts
@@ -150,7 +152,9 @@ function antigravityDecodeStream(ctx: ResponseContext): StreamTransformer<OpenAI
 const providerTranslators: Record<Format, ProviderTranslator> = {
   [Format.OpenAI]: {
     format: Format.OpenAI,
-    encodeRequest: (req) => req,
+    // Strip pivot-only `reasoning_content` from messages: harmless for OpenAI,
+    // but DeepSeek 400s when it appears in input (see stripReasoningContent).
+    encodeRequest: stripReasoningContent,
     decodeResponse: passthroughResponse,
     decodeStream: () => identityStream<OpenAIStreamChunk>(),
   },
@@ -214,6 +218,19 @@ const providerTranslators: Record<Format, ProviderTranslator> = {
     decodeResponse: antigravityDecodeResponse,
     decodeStream: antigravityDecodeStream,
   },
+  // Web-reverse (best-effort): cookie-auth scraping with no published schema.
+  [Format.GrokWeb]: {
+    format: Format.GrokWeb,
+    encodeRequest: reqWebReverse.grokRequestFromOpenAI,
+    decodeResponse: resWebReverse.grokTranslateResponse,
+    decodeStream: resWebReverse.grokCreateStreamTransformer,
+  },
+  [Format.PerplexityWeb]: {
+    format: Format.PerplexityWeb,
+    encodeRequest: reqWebReverse.perplexityRequestFromOpenAI,
+    decodeResponse: resWebReverse.perplexityTranslateResponse,
+    decodeStream: resWebReverse.perplexityCreateStreamTransformer,
+  },
 };
 
 const clientTranslators: Record<Format, ClientTranslator> = {
@@ -260,6 +277,10 @@ const clientTranslators: Record<Format, ClientTranslator> = {
   [Format.Ollama]: openAIClientFallback(Format.Ollama),
   [Format.Vertex]: openAIClientFallback(Format.Vertex),
   [Format.CommandCode]: openAIClientFallback(Format.CommandCode),
+  // Web-reverse formats are provider-only; ZGate never exposes them as a client
+  // surface, so fall back to OpenAI-identity on the client side.
+  [Format.GrokWeb]: openAIClientFallback(Format.GrokWeb),
+  [Format.PerplexityWeb]: openAIClientFallback(Format.PerplexityWeb),
 };
 
 function openAIClientFallback(format: Format): ClientTranslator {

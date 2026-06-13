@@ -84,13 +84,20 @@ export function openAIToolCallToGemini(call: OpenAIToolCall): GeminiFunctionCall
   };
 }
 
-/** Gemini functionCall part -> OpenAI tool call. */
+/** Gemini functionCall part -> OpenAI tool call.
+ *
+ * Gemini function calls carry no id; OpenAI correlates tool results to calls by
+ * `tool_call_id`. We derive a deterministic `call_<name>` id so the matching
+ * `functionResponse` (decoded to an OpenAI tool message with the same id, see
+ * geminiHelper) lines up. Parallel calls to the same function would collide —
+ * rare on Gemini — and fall back to acceptable best-effort correlation. */
 export function geminiFunctionCallToOpenAI(part: GeminiFunctionCall): OpenAIToolCall {
+  const name = part.functionCall.name;
   return {
-    id: generateId("call"),
+    id: name ? `call_${name}` : generateId("call"),
     type: "function",
     function: {
-      name: part.functionCall.name,
+      name,
       arguments: stringifyArguments(part.functionCall.args),
     },
   };

@@ -39,8 +39,14 @@ export class CursorExecutor extends BaseExecutor {
 
   buildAuthHeaders(req: ExecutorRequest): Record<string, string> {
     const psd = req.connection.credentials.providerSpecificData ?? {};
+    // Resolution order: per-connection override -> OAUTH_CURSOR_CLIENT_VERSION
+    // env (docs/PROVIDERS.md cursor env var) -> built-in default. The client
+    // version is a public, non-secret config value, so reading it from env here
+    // is safe and keeps it in sync with .env.example.
     const clientVersion =
-      typeof psd.clientVersion === "string" ? psd.clientVersion : CURSOR_DEFAULT_CLIENT_VERSION;
+      typeof psd.clientVersion === "string"
+        ? psd.clientVersion
+        : process.env.OAUTH_CURSOR_CLIENT_VERSION || CURSOR_DEFAULT_CLIENT_VERSION;
     const headers: Record<string, string> = { "x-cursor-client-version": clientVersion };
     const token = req.connection.credentials.accessToken;
     if (token) headers.authorization = `Bearer ${token}`;

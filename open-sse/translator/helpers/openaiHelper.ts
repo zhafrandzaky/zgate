@@ -187,6 +187,30 @@ export function normalizeRequest(raw: unknown): OpenAIChatRequest {
   return request;
 }
 
+/**
+ * Strip the pivot-only `reasoning_content` field from messages before sending to
+ * an OpenAI-wire provider. DeepSeek returns a 400 when `reasoning_content`
+ * appears in input messages (https://api-docs.deepseek.com/guides/reasoning_model:
+ * "If the reasoning_content field is included in the sequence of input messages,
+ * the API will return a 400 error"). Real OpenAI ignores unknown fields, so this
+ * is safe for every OpenAI-format provider. Returns the SAME request reference
+ * when there is nothing to strip, so identity passthrough is preserved.
+ */
+export function stripReasoningContent(req: OpenAIChatRequest): OpenAIChatRequest {
+  const hasReasoning = req.messages.some(
+    (m) => m.reasoning_content !== undefined && m.reasoning_content !== null,
+  );
+  if (!hasReasoning) return req;
+  return {
+    ...req,
+    messages: req.messages.map((m) => {
+      if (m.reasoning_content == null) return m;
+      const { reasoning_content: _omit, ...rest } = m;
+      return rest;
+    }),
+  };
+}
+
 /** Flatten message content to plain text (used for systems that take strings). */
 export function contentToText(content: OpenAIContent): string {
   if (content == null) return "";

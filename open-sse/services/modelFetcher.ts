@@ -67,6 +67,8 @@ export async function fetchModelsFromProvider(connection: FetchConnection): Prom
   if (connection.provider === "anthropic" || connection.provider === "claude") {
     headers["anthropic-version"] = ANTHROPIC_VERSION;
   }
+  // Provider-specific static headers (e.g. OAuth beta header for claude).
+  if (config.extraHeaders) Object.assign(headers, config.extraHeaders);
 
   try {
     const response = await fetch(url, {

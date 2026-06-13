@@ -30,6 +30,10 @@ export const Format = {
   CommandCode: "commandcode",
   /** Antigravity IDE backend (Gemini-style envelope). */
   Antigravity: "antigravity",
+  /** grok.com web-reverse chat (cookie auth, best-effort). */
+  GrokWeb: "grok-web",
+  /** perplexity.ai web-reverse ask (cookie auth, best-effort). */
+  PerplexityWeb: "perplexity-web",
 } as const;
 
 export type Format = (typeof Format)[keyof typeof Format];
