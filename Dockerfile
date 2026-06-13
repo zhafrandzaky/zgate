@@ -25,7 +25,7 @@ COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile
 
 COPY . .
-RUN bunx prisma generate
+RUN bun run db:generate
 RUN bun run build
 
 # ─────────────────────────────────────────────────────────────────────────────
