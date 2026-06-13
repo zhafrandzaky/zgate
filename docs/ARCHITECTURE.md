@@ -792,21 +792,71 @@ tests/ unit/ integration/
 
 ---
 
-## 15. Provider Executor List
+## 15. Provider Executor Coverage
 
-Semua provider 9Router + DeepSeek (detail di `docs/PROVIDERS.md`):
+Daftar lengkap provider yang didukung (detail per provider, env vars, base URL,
+format, dan model list ada di `docs/PROVIDERS.md`). Total 80+ provider connection
+type lintas semua kategori.
 
-Claude, Kiro, OpenCode Free, Codex, GitHub Copilot, Gemini, Gemini CLI, Vertex AI,
-Cursor, Antigravity, Qwen, iFlow, Grok Web, Perplexity Web, Ollama, OpenRouter,
-Azure OpenAI, OpenAI, GLM, MiniMax, Kimi, Xiaomi TokenPlan, CommandCode, QoderAI,
-OpenCode Go, **DeepSeek V4 Flash**, **DeepSeek V4 Pro**, Compatible Node (custom).
+### OAuth providers (15) — butuh login / device-code
 
-Media providers:
+claude (cc), gemini, gemini-cli (gc), codex (cx), qwen (qw), iflow (if),
+antigravity (ag), github / GitHub Copilot (gh), kiro (kr), cursor (cu),
+kimi-coding (kmc), xai / Grok, cline, gitlab / GitLab Duo,
+codebuddy / Tencent CodeBuddy.
+
+Semua OAuth credentials dibaca dari env vars `OAUTH_*` (lihat `.env.example`),
+tidak ada yang di-hardcode di `open-sse/config/providers.ts`.
+
+### API key providers (60+)
+
+anthropic, openai, **deepseek** (V4 Flash/Pro), groq, openrouter, mistral,
+perplexity, together, fireworks, cerebras, nvidia, glm (Intl), glm-cn, kimi,
+minimax, minimax-cn, alicode, alicode-intl, volcengine-ark, byteplus, azure,
+cloudflare-ai, xiaomi-mimo, xiaomi-tokenplan, qoder (qd), kilocode (kc),
+opencode-go, vercel-ai-gateway, agentrouter, siliconflow, hyperbolic, nanobanana,
+chutes, aimlapi, novita, modal, reka, nlpcloud, bazaarlink, completions, enally,
+freetheai, llm7, lepton, kluster, ai21, inference-net, predibase, bytez, morph,
+longcat, scaleway, deepinfra, sambanova, nscale, baseten, publicai, nous-research,
+glhf, blackbox.
+
+### Cookie / Web providers (2)
+
+grok-web, perplexity-web (web-reverse, best effort — jadikan fallback).
+
+### No-auth providers (3)
+
+opencode, uncloseai, puter.
+
+### Local providers (2)
+
+ollama (`ollama.com/api/chat`), ollama-local (`localhost:11434`, configurable).
+
+### Vertex AI (2)
+
+vertex (format `vertex`, URL dynamic per model/region), vertex-partner
+(partner models Claude/Llama/Mistral/GLM, format `openai`).
+
+### Compatible Node (custom)
+
+User-defined baseUrl, format `openai` atau `anthropic`, live fetch
+`GET {baseUrl}/v1/models`.
+
+### Live model resolvers (Addendum 7)
+
+Kiro (AWS CodeWhisperer `ListAvailableModels`, expand 4 variants), Qoder (dynamic
+per account), Ollama (`/api/tags`), Compatible (`/v1/models`); plus auto-fetch
+untuk claude, anthropic, openai, deepseek, groq, openrouter, mistral, together,
+cerebras, nvidia, siliconflow, vercel-ai-gateway, gemini, codex, xai, cline.
+
+### Media providers
+
 - **TTS**: OpenAI, ElevenLabs, MiniMax, Google TTS, Edge TTS, Gemini, OpenRouter,
   LocalDevice (+ Deepgram & Inworld voices)
-- **STT**: OpenAI Whisper, Deepgram, HuggingFace, + provider dengan sttConfig
-- **Image**: OpenAI DALL-E, Black Forest Labs FLUX, fal.ai, Stability AI, RunwayML,
-  HuggingFace, Gemini, Cloudflare AI, ComfyUI, SD WebUI, NanoBanana, Codex
+- **STT**: Deepgram, AssemblyAI, OpenAI Whisper, HuggingFace, + provider dengan
+  sttConfig
+- **Image**: fal.ai, Stability AI, Black Forest Labs FLUX, Recraft, RunwayML,
+  OpenAI DALL-E, Gemini, Cloudflare AI, ComfyUI, SD WebUI, NanoBanana, Codex
 - **Web Search/Fetch**: provider-backed + chatSearch (LLM wrap fallback)
 
 ---
