@@ -2,7 +2,7 @@
 name = "rtk"
 version = "0.1.0"
 edition = "2021"
-description = "ZGate RTK engine — compresses tool_result blocks in input messages. Full implementation in TASK-004."
+description = "ZGate RTK engine — compresses tool_result blocks in input messages before they are sent to a provider. See docs/RTK.md."
 
 [[bin]]
 name = "rtk"
@@ -11,6 +11,12 @@ path = "src/main.rs"
 [lib]
 name = "rtk"
 path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+regex = "1"
+once_cell = "1"
 
 [profile.release]
 lto = true
