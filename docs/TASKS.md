@@ -7,7 +7,7 @@ TASK-026 dan TASK-027 dibatalkan per Addendum 9 (tidak relevan untuk hosted SaaS
 |------|------|--------|--------------|
 | TASK-001 | Project Initialization | DONE | — |
 | TASK-002 | Auth System | DONE | TASK-001 |
-| TASK-003 | Email Templates | TODO | TASK-001 |
+| TASK-003 | Email Templates | DONE | TASK-001 |
 | TASK-004 | RTK Engine (Rust) | TODO | TASK-001 |
 | TASK-005 | Format Translator | TODO | TASK-001 |
 | TASK-006 | Provider Executors | TODO | TASK-005 |
