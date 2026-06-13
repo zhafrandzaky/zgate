@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/Bun-latest-black.svg)](https://bun.sh)
-[![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6.svg)](https://www.typescriptlang.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -128,14 +128,14 @@ bun dev
 | Layer | Technology |
 |---|---|
 | Runtime / package manager | Bun (latest) |
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript strict |
 | Database | PostgreSQL 16 + pgvector |
 | Cache / Pub-Sub | Redis 7 |
 | RTK engine | Rust (latest stable) |
 | Styling | Tailwind v4 |
 | Animation | Motion v12 |
-| ORM | Prisma |
+| ORM | Prisma 7 (prisma-client + pg driver adapter) |
 | WebSocket | Bun native sidecar |
 
 ## Project Structure
@@ -147,7 +147,7 @@ app/                  Landing, auth, dashboard, admin, API routes
   dashboard/          User dashboard (providers, combos, keys, usage, ...)
   zyy/admin/          Admin dashboard (separate login)
 src/
-  middleware.ts       JWT / admin JWT / API key guard
+  proxy.ts            JWT / admin JWT / API key guard (Next 16 proxy convention)
   lib/                env, db, redis, auth, otp, apiKey, rtk, memory, ws, webhook
   app/api/            auth, providers, keys, combos, usage, admin, v1, v1beta
   hooks/              useWebSocket, useRealtimeUsage, ...

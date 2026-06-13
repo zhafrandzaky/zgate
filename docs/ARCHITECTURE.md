@@ -726,9 +726,10 @@ app/
     dashboard/ users/ [id]/ usage/ maintenance/ broadcast/ audit-log/
 
 src/
-  middleware.ts                   ← JWT / admin JWT / API key guard
+  proxy.ts                        ← JWT / admin JWT / API key guard (Next 16 proxy convention)
+  generated/prisma/               ← Prisma client (prisma-client generator output, gitignored)
   lib/
-    env.ts db.ts redis.ts         ← infra singletons (Zod validated env)
+    env.ts db.ts redis.ts         ← infra singletons (Zod validated env; db.ts = Prisma 7 + pg adapter)
     auth.ts otp.ts password.ts apiKey.ts
     auth/oidc.ts                  ← OIDC (roadmap v2)
     rateLimit.ts                  ← sliding window Redis
