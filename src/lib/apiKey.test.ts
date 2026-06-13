@@ -40,8 +40,11 @@ describe("apiKey", () => {
 
   test("timing-safe hex compare matches equal digests and rejects others", () => {
     const hash = hashApiKey(generateApiKey().key);
+    // Flip the last hex char to one that is guaranteed different, so the
+    // mutated digest never accidentally equals `hash` (e.g. when it ends in 0).
+    const lastChar = hash.at(-1) === "0" ? "1" : "0";
     expect(timingSafeHexEqual(hash, hash)).toBe(true);
-    expect(timingSafeHexEqual(hash, hash.slice(0, -1) + "0")).toBe(false);
+    expect(timingSafeHexEqual(hash, hash.slice(0, -1) + lastChar)).toBe(false);
     expect(timingSafeHexEqual(hash, "abc")).toBe(false);
   });
 

@@ -28,6 +28,8 @@ Thumbs.db
 
 # Prisma
 prisma/migrations/**/migration_lock.toml
+# Generated Prisma client (prisma-client generator output; recreated by `prisma generate`)
+/src/generated/
 
 # Bootstrap and temporary root files
 BOOTSTRAP.md

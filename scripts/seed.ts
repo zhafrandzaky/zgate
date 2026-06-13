@@ -3,10 +3,17 @@
  * Admin accounts are NEVER created via public register — only via this seed
  * (docs/ARCHITECTURE.md §7). Run: `bun run db:seed`.
  */
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/src/generated/prisma/client";
 import argon2 from "argon2";
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL must be set to seed the database.");
+}
+
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
 async function main(): Promise<void> {
   const email = process.env.ADMIN_EMAIL;
