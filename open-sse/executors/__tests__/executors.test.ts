@@ -37,7 +37,10 @@ function connection(
   };
 }
 
-function request(conn: ResolvedConnection, overrides: Partial<ExecutorRequest> = {}): ExecutorRequest {
+function request(
+  conn: ResolvedConnection,
+  overrides: Partial<ExecutorRequest> = {},
+): ExecutorRequest {
   return {
     connection: conn,
     model: "test-model",
@@ -135,7 +138,9 @@ describe("DefaultExecutor", () => {
   test("OAuth providers prefer the access token", () => {
     const ex = getExecutor("qwen")!;
     expect(ex.isOAuth).toBe(true);
-    const req = request(connection("qwen", { accessToken: "at", apiKey: "ak" }, { authType: "oauth" }));
+    const req = request(
+      connection("qwen", { accessToken: "at", apiKey: "ak" }, { authType: "oauth" }),
+    );
     expect(ex.buildUrl(req)).toBe("https://portal.qwen.ai/v1/chat/completions");
     expect(ex.buildHeaders(req).authorization).toBe("Bearer at");
   });
@@ -171,12 +176,25 @@ describe("DefaultExecutor", () => {
   });
 
   test("{baseUrl} template requires a base url", () => {
-    const ex = getExecutor("cloudflare-ai")!;
-    expect(() => ex.buildUrl(request(connection("cloudflare-ai", { apiKey: "k" })))).toThrow();
+    const ex = getExecutor("vertex-partner")!;
+    expect(() => ex.buildUrl(request(connection("vertex-partner", { apiKey: "k" })))).toThrow();
     const url = ex.buildUrl(
-      request(connection("cloudflare-ai", { apiKey: "k" }, { baseUrl: "https://cf/acc/123/" })),
+      request(connection("vertex-partner", { apiKey: "k" }, { baseUrl: "https://vx/" })),
     );
-    expect(url).toBe("https://cf/acc/123/ai/v1/chat/completions");
+    expect(url).toBe("https://vx/chat/completions");
+  });
+
+  test("cloudflare-ai builds URL from accountId in credentials, not baseUrl", () => {
+    const ex = getExecutor("cloudflare-ai")!;
+    // accountId is required and comes from providerSpecificData (not baseUrl).
+    expect(() => ex.buildUrl(request(connection("cloudflare-ai", { apiKey: "k" })))).toThrow();
+    const req = request(
+      connection("cloudflare-ai", { apiKey: "k", providerSpecificData: { accountId: "acc123" } }),
+    );
+    expect(ex.buildUrl(req)).toBe(
+      "https://api.cloudflare.com/client/v4/accounts/acc123/ai/v1/chat/completions",
+    );
+    expect(ex.buildHeaders(req).authorization).toBe("Bearer k");
   });
 });
 
@@ -244,7 +262,11 @@ describe("DeepSeekExecutor", () => {
   });
 
   test("pricing-aware cost (flash vs pro)", () => {
-    const usage: NormalizedUsage = { promptTokens: 1_000_000, completionTokens: 1_000_000, totalTokens: 2_000_000 };
+    const usage: NormalizedUsage = {
+      promptTokens: 1_000_000,
+      completionTokens: 1_000_000,
+      totalTokens: 2_000_000,
+    };
     expect(deepseekCostUsd("deepseek-v4-flash", usage)).toBeCloseTo(0.14 + 0.28, 6);
     expect(deepseekCostUsd("deepseek/deepseek-v4-pro", usage)).toBeCloseTo(0.435 + 0.87, 6);
     expect(deepseekCostUsd("unknown-model", usage)).toBe(0);
@@ -271,7 +293,9 @@ describe("specialized executors", () => {
     const ex = getExecutor("codex")!;
     expect(ex.format).toBe(Format.OpenAIResponses);
     const headers = ex.buildHeaders(
-      request(connection("codex", { accessToken: "t", providerSpecificData: { accountId: "acc" } })),
+      request(
+        connection("codex", { accessToken: "t", providerSpecificData: { accountId: "acc" } }),
+      ),
     );
     expect(headers["openai-beta"]).toBe("responses=experimental");
     expect(headers["chatgpt-account-id"]).toBe("acc");
@@ -336,7 +360,9 @@ describe("specialized executors", () => {
 
   test("antigravity: routes sandbox models to the sandbox host", () => {
     const ex = getExecutor("antigravity")!;
-    const daily = ex.buildUrl(request(connection("antigravity", { accessToken: "t" }), { model: "gemini-3-flash" }));
+    const daily = ex.buildUrl(
+      request(connection("antigravity", { accessToken: "t" }), { model: "gemini-3-flash" }),
+    );
     expect(daily).toContain("daily-cloudcode-pa.googleapis.com");
     const sandbox = ex.buildUrl(
       request(connection("antigravity", { accessToken: "t" }), { model: "sandbox-model" }),
@@ -379,7 +405,9 @@ describe("specialized executors", () => {
   test("ollama-local: localhost default + ollama format + no auth", () => {
     const ex = getExecutor("ollama-local")!;
     expect(ex.format).toBe(Format.Ollama);
-    expect(ex.buildUrl(request(connection("ollama-local")))).toBe("http://localhost:11434/api/chat");
+    expect(ex.buildUrl(request(connection("ollama-local")))).toBe(
+      "http://localhost:11434/api/chat",
+    );
     expect(ex.buildHeaders(request(connection("ollama-local"))).authorization).toBeUndefined();
     const usage = ex.extractUsage({ prompt_eval_count: 5, eval_count: 7 });
     expect(usage).toEqual({ promptTokens: 5, completionTokens: 7, totalTokens: 12 });
@@ -387,7 +415,9 @@ describe("specialized executors", () => {
 
   test("web-reverse: cookie auth, 403 maps to auth (expired cookie)", () => {
     const ex = getExecutor("grok-web")!;
-    const headers = ex.buildHeaders(request(connection("grok-web", { cookie: "session=abc" }, { authType: "cookie" })));
+    const headers = ex.buildHeaders(
+      request(connection("grok-web", { cookie: "session=abc" }, { authType: "cookie" })),
+    );
     expect(headers.cookie).toBe("session=abc");
     expect(ex.mapError(403)).toBe(FallbackCategory.Auth);
   });
@@ -417,5 +447,84 @@ describe("execute (mocked fetch)", () => {
     const headers = seen[0]!.init.headers as Record<string, string>;
     expect(headers.authorization).toBe("Bearer sk");
     expect(seen[0]!.init.body).toBe(JSON.stringify({ model: "m", messages: [] }));
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Audit fixes (TASK-006)
+// ----------------------------------------------------------------------------
+
+describe("audit fixes", () => {
+  test("claude OAuth carries Claude-CLI spoof headers + bearer", () => {
+    const ex = getExecutor("claude")!;
+    expect(ex.isOAuth).toBe(true);
+    const headers = ex.buildHeaders(
+      request(connection("claude", { accessToken: "tok" }, { authType: "oauth" })),
+    );
+    expect(headers.authorization).toBe("Bearer tok");
+    expect(headers["anthropic-beta"]).toContain("claude-code");
+    expect(headers["anthropic-beta"]).toContain("oauth-2025-04-20");
+    expect(headers["x-app"]).toBe("cli");
+  });
+
+  test("agentrouter carries spoof headers with x-api-key auth", () => {
+    const ex = getExecutor("agentrouter")!;
+    const headers = ex.buildHeaders(request(connection("agentrouter", { apiKey: "k" })));
+    expect(headers["x-api-key"]).toBe("k");
+    expect(headers["anthropic-beta"]).toContain("claude-code");
+  });
+
+  test("cursor client version resolves from OAUTH_CURSOR_CLIENT_VERSION env", () => {
+    const prev = process.env.OAUTH_CURSOR_CLIENT_VERSION;
+    process.env.OAUTH_CURSOR_CLIENT_VERSION = "9.9.9";
+    try {
+      const ex = getExecutor("cursor")!;
+      const headers = ex.buildHeaders(request(connection("cursor", { accessToken: "t" })));
+      expect(headers["x-cursor-client-version"]).toBe("9.9.9");
+    } finally {
+      if (prev === undefined) delete process.env.OAUTH_CURSOR_CLIENT_VERSION;
+      else process.env.OAUTH_CURSOR_CLIENT_VERSION = prev;
+    }
+  });
+
+  test("cursor providerSpecificData.clientVersion overrides env", () => {
+    const prev = process.env.OAUTH_CURSOR_CLIENT_VERSION;
+    process.env.OAUTH_CURSOR_CLIENT_VERSION = "9.9.9";
+    try {
+      const ex = getExecutor("cursor")!;
+      const headers = ex.buildHeaders(
+        request(
+          connection("cursor", {
+            accessToken: "t",
+            providerSpecificData: { clientVersion: "1.2.3" },
+          }),
+        ),
+      );
+      expect(headers["x-cursor-client-version"]).toBe("1.2.3");
+    } finally {
+      if (prev === undefined) delete process.env.OAUTH_CURSOR_CLIENT_VERSION;
+      else process.env.OAUTH_CURSOR_CLIENT_VERSION = prev;
+    }
+  });
+
+  test("github copilot routes to /responses via providerSpecificData", () => {
+    const ex = getExecutor("github")!;
+    expect(ex.buildUrl(request(connection("github", { accessToken: "t" })))).toBe(
+      "https://api.githubcopilot.com/chat/completions",
+    );
+    expect(
+      ex.buildUrl(
+        request(
+          connection("github", { accessToken: "t", providerSpecificData: { api: "responses" } }),
+        ),
+      ),
+    ).toBe("https://api.githubcopilot.com/responses");
+  });
+
+  test("opencode uses the zen gateway path", () => {
+    const ex = getExecutor("opencode")!;
+    expect(ex.buildUrl(request(connection("opencode")))).toBe(
+      "https://opencode.ai/zen/v1/chat/completions",
+    );
   });
 });

@@ -19,20 +19,35 @@ export interface GeminiGenerationConfig {
   thinkingConfig?: { includeThoughts: boolean };
 }
 
+export interface GeminiFunctionCallingConfig {
+  mode: "AUTO" | "ANY" | "NONE";
+  /** Restricts ANY-mode calls to these functions (Gemini function-calling docs). */
+  allowedFunctionNames?: string[];
+}
+
 export interface GeminiRequest {
   contents: GeminiContent[];
   systemInstruction?: { parts: { text: string }[] };
   tools?: { functionDeclarations: GeminiFunctionDeclaration[] }[];
-  toolConfig?: { functionCallingConfig: { mode: "AUTO" | "ANY" | "NONE" } };
+  toolConfig?: { functionCallingConfig: GeminiFunctionCallingConfig };
   generationConfig?: GeminiGenerationConfig;
 }
 
-function mapToolMode(choice: OpenAIToolChoice | undefined): "AUTO" | "ANY" | "NONE" | undefined {
+/**
+ * Map an OpenAI tool_choice to Gemini's functionCallingConfig.
+ * https://ai.google.dev/gemini-api/docs/function-calling — a specific function
+ * is forced with `mode: "ANY"` + `allowedFunctionNames: [name]`.
+ */
+function mapFunctionCallingConfig(
+  choice: OpenAIToolChoice | undefined,
+): GeminiFunctionCallingConfig | undefined {
   if (choice === undefined) return undefined;
-  if (choice === "auto") return "AUTO";
-  if (choice === "required") return "ANY";
-  if (choice === "none") return "NONE";
-  if (typeof choice === "object") return "ANY";
+  if (choice === "auto") return { mode: "AUTO" };
+  if (choice === "required") return { mode: "ANY" };
+  if (choice === "none") return { mode: "NONE" };
+  if (typeof choice === "object") {
+    return { mode: "ANY", allowedFunctionNames: [choice.function.name] };
+  }
   return undefined;
 }
 
@@ -48,8 +63,8 @@ export function requestFromOpenAI(req: OpenAIChatRequest): GeminiRequest {
 
   if (req.tools && req.tools.length > 0) {
     out.tools = [{ functionDeclarations: openAIToolsToGemini(req.tools) }];
-    const mode = mapToolMode(req.tool_choice);
-    if (mode) out.toolConfig = { functionCallingConfig: { mode } };
+    const functionCallingConfig = mapFunctionCallingConfig(req.tool_choice);
+    if (functionCallingConfig) out.toolConfig = { functionCallingConfig };
   }
 
   const generationConfig: GeminiGenerationConfig = {};

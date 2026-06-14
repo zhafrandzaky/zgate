@@ -25,6 +25,23 @@ export interface ProviderEndpointConfig {
 
 const ANTHROPIC_VERSION = "2023-06-01";
 
+/**
+ * Headers that make a request look like Anthropic's official Claude CLI
+ * (`claude-code`). Required by the OAuth (Claude Pro/Max) surface and by spoof
+ * gateways like agentrouter, which expect the CLI's identification + beta flags.
+ *
+ * These are reverse-engineered from the Claude Code client (no public API doc);
+ * docs/PROVIDERS.md marks `claude` and `agentrouter` as "claude (SPOOF)" /
+ * `CLAUDE_CLI_SPOOF_HEADERS`. The OAuth bearer itself is attached by authStyle.
+ */
+export const CLAUDE_CLI_SPOOF_HEADERS: Record<string, string> = {
+  "anthropic-version": ANTHROPIC_VERSION,
+  "anthropic-beta":
+    "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14",
+  "x-app": "cli",
+  "user-agent": "claude-cli/1.0.0 (external, cli)",
+};
+
 /** Shared config for Anthropic Messages-compatible API-key providers. */
 function claudeApiKey(endpoint: string): ProviderEndpointConfig {
   return {
@@ -59,8 +76,8 @@ export const providerEndpoints: Record<string, ProviderEndpointConfig> = {
   byteplus: {
     endpoint: "https://ark.ap-southeast.bytepluses.com/api/coding/v3/chat/completions",
   },
-  // accountId is baked into baseUrl: https://api.cloudflare.com/client/v4/accounts/{id}
-  "cloudflare-ai": { endpoint: "{baseUrl}/ai/v1/chat/completions" },
+  // cloudflare-ai has a dedicated executor (CloudflareAiExecutor): the accountId
+  // comes from credentials.providerSpecificData.accountId, not the base URL.
   "xiaomi-mimo": { endpoint: "https://api.xiaomimimo.com/v1/chat/completions" },
   kilocode: { endpoint: "https://api.kilo.ai/api/openrouter/chat/completions" },
   "opencode-go": { endpoint: "https://opencode.ai/zen/go/v1/chat/completions" },
@@ -109,8 +126,11 @@ export const providerEndpoints: Record<string, ProviderEndpointConfig> = {
   codebuddy: { endpoint: "https://copilot.tencent.com/v1/chat/completions", isOAuth: true },
 
   // ── No-auth providers ────────────────────────────────────────────────────
+  // Path aligned with the sibling opencode-go "zen" gateway
+  // (opencode.ai/zen/go/v1/chat/completions). opencode's exact no-auth chat path
+  // is not officially documented — best-effort; override via connection baseUrl.
   opencode: {
-    endpoint: "https://opencode.ai/v1/chat/completions",
+    endpoint: "https://opencode.ai/zen/v1/chat/completions",
     authStyle: "none",
     extraHeaders: { "x-opencode-client": "desktop" },
   },
@@ -129,14 +149,24 @@ export const providerEndpoints: Record<string, ProviderEndpointConfig> = {
   kimi: claudeApiKey("https://api.kimi.com/coding/v1/messages"),
   minimax: claudeApiKey("https://api.minimax.io/anthropic/v1/messages"),
   "minimax-cn": claudeApiKey("https://api.minimaxi.com/anthropic/v1/messages"),
-  agentrouter: claudeApiKey("https://agentrouter.org/v1/messages"),
+  // agentrouter: Anthropic-compatible but expects Claude-CLI spoof headers.
+  agentrouter: {
+    endpoint: "https://agentrouter.org/v1/messages",
+    format: Format.Claude,
+    authStyle: "x-api-key",
+    extraHeaders: CLAUDE_CLI_SPOOF_HEADERS,
+    usageShape: "anthropic",
+  },
 
   // ── Anthropic Messages-compatible, OAuth (access token as Bearer) ────────
+  // claude (OAuth, Claude Pro/Max): Bearer access token + Claude-CLI spoof
+  // headers (docs/PROVIDERS.md: CLAUDE_CLI_SPOOF_HEADERS), distinct from the
+  // `anthropic` API-key provider which uses x-api-key + plain CLAUDE_API_HEADERS.
   claude: {
     endpoint: "https://api.anthropic.com/v1/messages",
     format: Format.Claude,
     authStyle: "Bearer",
-    extraHeaders: { "anthropic-version": ANTHROPIC_VERSION },
+    extraHeaders: CLAUDE_CLI_SPOOF_HEADERS,
     usageShape: "anthropic",
     isOAuth: true,
   },

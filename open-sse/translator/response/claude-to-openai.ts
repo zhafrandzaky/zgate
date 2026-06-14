@@ -27,7 +27,21 @@ function mapUsage(raw: unknown): OpenAIUsage | undefined {
   if (!isRecord(raw)) return undefined;
   const input = typeof raw.input_tokens === "number" ? raw.input_tokens : 0;
   const output = typeof raw.output_tokens === "number" ? raw.output_tokens : 0;
-  return { prompt_tokens: input, completion_tokens: output, total_tokens: input + output };
+  // Anthropic reports cached input separately from `input_tokens`; OpenAI's
+  // `prompt_tokens` is the full input, with cached tokens surfaced under
+  // `prompt_tokens_details.cached_tokens` (Anthropic prompt-caching docs).
+  const cacheRead =
+    typeof raw.cache_read_input_tokens === "number" ? raw.cache_read_input_tokens : 0;
+  const cacheCreate =
+    typeof raw.cache_creation_input_tokens === "number" ? raw.cache_creation_input_tokens : 0;
+  const promptTokens = input + cacheRead + cacheCreate;
+  const usage: OpenAIUsage = {
+    prompt_tokens: promptTokens,
+    completion_tokens: output,
+    total_tokens: promptTokens + output,
+  };
+  if (cacheRead > 0) usage.prompt_tokens_details = { cached_tokens: cacheRead };
+  return usage;
 }
 
 export function translateResponse(body: unknown, ctx: ResponseContext): OpenAIChatResponse {
@@ -157,7 +171,7 @@ export function createStreamTransformer(
         if (usageDelta) {
           usage = usage
             ? {
-                prompt_tokens: usage.prompt_tokens,
+                ...usage,
                 completion_tokens: usageDelta.completion_tokens,
                 total_tokens: usage.prompt_tokens + usageDelta.completion_tokens,
               }

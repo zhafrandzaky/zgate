@@ -129,19 +129,23 @@ export function openAIToAnthropic(messages: OpenAIMessage[]): AnthropicMessagesP
 
     if (message.role === "assistant") {
       const blocks: AnthropicContentBlock[] = [];
-      if (message.reasoning_content) {
-        blocks.push({ type: "thinking", thinking: message.reasoning_content });
-      }
+      // Note: prior-turn `reasoning_content` is intentionally NOT replayed as a
+      // `thinking` block. Anthropic rejects thinking blocks in request input that
+      // lack their original `signature` (Anthropic extended-thinking docs), and a
+      // cross-model thinking trace cannot be re-signed — the pivot cannot carry
+      // the signature. Dropping it avoids a 400; visible answer/tool_calls remain.
       blocks.push(...openAIContentToAnthropicBlocks(message));
       for (const call of message.tool_calls ?? []) {
         blocks.push(openAIToolCallToAnthropic(call));
       }
-      out.push({ role: "assistant", content: blocks });
+      // Guard: Anthropic rejects an empty `content` array — skip the empty turn.
+      if (blocks.length > 0) out.push({ role: "assistant", content: blocks });
       continue;
     }
 
     // user
-    out.push({ role: "user", content: openAIContentToAnthropicBlocks(message) });
+    const userBlocks = openAIContentToAnthropicBlocks(message);
+    if (userBlocks.length > 0) out.push({ role: "user", content: userBlocks });
   }
 
   const payload: AnthropicMessagesPayload = { messages: out };
@@ -152,6 +156,20 @@ export function openAIToAnthropic(messages: OpenAIMessage[]): AnthropicMessagesP
 // ----------------------------------------------------------------------------
 // Anthropic -> OpenAI (request direction, for Claude-format clients)
 // ----------------------------------------------------------------------------
+
+/**
+ * Anthropic `tool_result.content` may be a plain string or an array of content
+ * blocks (`{type:"text"}` / `{type:"image"}`). The OpenAI pivot tool message
+ * carries a string, so flatten array content to its concatenated text.
+ */
+function toolResultContentToString(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return content == null ? "" : String(content);
+  return content
+    .map((block) => (isRecord(block) && typeof block.text === "string" ? block.text : ""))
+    .filter(Boolean)
+    .join("\n");
+}
 
 function systemToText(system: unknown): string {
   if (typeof system === "string") return system;
@@ -177,7 +195,11 @@ export function anthropicToOpenAI(payload: AnthropicMessagesPayload): OpenAIMess
       const textChunks: string[] = [];
       for (const block of message.content) {
         if (block.type === "tool_result") {
-          out.push({ role: "tool", tool_call_id: block.tool_use_id, content: block.content });
+          out.push({
+            role: "tool",
+            tool_call_id: block.tool_use_id,
+            content: toolResultContentToString(block.content),
+          });
         } else if (block.type === "text") {
           textChunks.push(block.text);
         } else if (block.type === "image") {
@@ -258,17 +280,37 @@ export function responseMessageToAnthropicContent(
 // Finish reason mapping
 // ----------------------------------------------------------------------------
 
-export type AnthropicStopReason = "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
+export type AnthropicStopReason =
+  | "end_turn"
+  | "max_tokens"
+  | "stop_sequence"
+  | "tool_use"
+  | "pause_turn"
+  | "refusal"
+  | "model_context_window_exceeded"
+  | null;
 
+/**
+ * Map an Anthropic `stop_reason` to an OpenAI `finish_reason`. Covers the newer
+ * reasons (Anthropic stop-reasons docs / claude-api skill):
+ *   - `refusal` (safety decline, incl. Fable 5) -> `content_filter`
+ *   - `model_context_window_exceeded` -> `length`
+ *   - `pause_turn` (server-tool loop paused) -> `null` (not terminal; caller
+ *     falls back to stop/tool_calls based on content).
+ */
 export function anthropicStopToOpenAI(stop: AnthropicStopReason): OpenAIFinishReason {
   switch (stop) {
     case "max_tokens":
+    case "model_context_window_exceeded":
       return "length";
     case "tool_use":
       return "tool_calls";
+    case "refusal":
+      return "content_filter";
     case "end_turn":
     case "stop_sequence":
       return "stop";
+    case "pause_turn":
     default:
       return null;
   }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { fetchModelsFromProvider, getStaticModels, mergeModels } from "../modelFetcher";
+import { getModelFetchConfig, supportsAutoFetch } from "../../config/modelFetchConfig";
 import {
   clearKiroCache,
   expandKiroVariants,
@@ -140,7 +141,9 @@ describe("resolveKiroModels", () => {
     let calls = 0;
     globalThis.fetch = (() => {
       calls += 1;
-      return Promise.resolve(new Response(JSON.stringify({ models: [{ id: "live-model" }] }), { status: 200 }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ models: [{ id: "live-model" }] }), { status: 200 }),
+      );
     }) as unknown as typeof fetch;
 
     const first = await resolveKiroModels({ provider: "kiro", accessToken: "cred-1" });
@@ -171,7 +174,9 @@ describe("fetchCompatibleModelIds", () => {
   });
   test("parses Anthropic models[].id shape when data is empty", async () => {
     stubFetch(200, { models: [{ id: "claude-x" }] });
-    expect(await fetchCompatibleModelIds("https://node.test", "tok", "anthropic")).toEqual(["claude-x"]);
+    expect(await fetchCompatibleModelIds("https://node.test", "tok", "anthropic")).toEqual([
+      "claude-x",
+    ]);
   });
   test("returns [] when no base url", async () => {
     expect(await fetchCompatibleModelIds(undefined, "tok")).toEqual([]);
@@ -246,5 +251,62 @@ describe("getModelCapabilities", () => {
   });
   test("getModelKind matches inference for non-LLM ids", () => {
     expect(getModelKind("whatever-image-gen")).toBe("image");
+  });
+});
+
+// ----------------------------------------------------------------------------
+// modelFetchConfig additions (TASK-006 audit)
+// ----------------------------------------------------------------------------
+
+describe("modelFetchConfig additions", () => {
+  test("newly-verified providers support auto-fetch", () => {
+    for (const p of [
+      "gemini",
+      "claude",
+      "xai",
+      "mistral",
+      "together",
+      "cerebras",
+      "nvidia",
+      "siliconflow",
+      "vercel-ai-gateway",
+    ]) {
+      expect(supportsAutoFetch(p)).toBe(true);
+    }
+  });
+
+  test("gemini parser strips the models/ prefix", () => {
+    const cfg = getModelFetchConfig("gemini")!;
+    expect(
+      cfg.parseResponse({
+        models: [{ name: "models/gemini-2.5-pro" }, { name: "models/gemini-3-flash" }],
+      }),
+    ).toEqual(["gemini-2.5-pro", "gemini-3-flash"]);
+  });
+
+  test("claude config carries the OAuth beta header", () => {
+    expect(getModelFetchConfig("claude")?.extraHeaders?.["anthropic-beta"]).toBe(
+      "oauth-2025-04-20",
+    );
+  });
+
+  test("together parses a top-level array response", async () => {
+    stubFetch(200, [{ id: "a" }, { id: "b" }]);
+    expect(await fetchModelsFromProvider({ provider: "together", apiKey: "k" })).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  test("gemini fetch parses models[].name", async () => {
+    stubFetch(200, { models: [{ name: "models/gemini-2.5-pro" }] });
+    expect(await fetchModelsFromProvider({ provider: "gemini", accessToken: "t" })).toEqual([
+      "gemini-2.5-pro",
+    ]);
+  });
+
+  test("mistral resolves via auto-fetch (data[].id)", async () => {
+    stubFetch(200, { data: [{ id: "mistral-large" }] });
+    expect(await resolveModels({ provider: "mistral", apiKey: "k" })).toEqual(["mistral-large"]);
   });
 });

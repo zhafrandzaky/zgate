@@ -161,9 +161,13 @@ export function geminiToOpenAI(payload: GeminiPayload): OpenAIMessage[] {
     const imageParts: Exclude<OpenAIMessage["content"], string | null> = [];
     for (const part of content.parts) {
       if (isFunctionResponsePart(part)) {
+        // Correlate to the call via the same deterministic id geminiHelper /
+        // toolCallHelper assign to the functionCall (`call_<name>`).
+        const fnName = part.functionResponse.name;
         out.push({
           role: "tool",
-          name: part.functionResponse.name,
+          name: fnName,
+          tool_call_id: fnName ? `call_${fnName}` : "",
           content: JSON.stringify(part.functionResponse.response),
         });
       } else if (isTextPart(part)) {

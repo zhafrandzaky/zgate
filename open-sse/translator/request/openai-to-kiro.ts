@@ -87,12 +87,27 @@ function assistantToHistory(message: OpenAIMessage): KiroAssistantMessage {
   return item;
 }
 
+function isUserTurn(item: KiroHistoryItem): item is KiroUserInputMessage {
+  return "userInputMessage" in item;
+}
+
+/**
+ * Build the CodeWhisperer `conversationState`.
+ *
+ * Every message is processed (the previous implementation broke out of the loop
+ * at the last user turn, silently dropping any assistant `tool_use` + `tool`
+ * results that followed it — the standard tool-continuation shape `[user,
+ * assistant(tool_calls), tool, ...]` with no trailing user message). Tool
+ * results attach to the user turn that follows them; trailing tool results (no
+ * following user) synthesize a continuation user turn so they reach the model.
+ * The last user turn becomes `currentMessage`; everything before it is history.
+ */
 export function requestFromOpenAI(req: OpenAIChatRequest): KiroRequest {
   const systemChunks: string[] = [];
-  const history: KiroHistoryItem[] = [];
+  const turns: KiroHistoryItem[] = [];
   let pendingToolResults: KiroToolResult[] = [];
 
-  const flushUser = (content: string, isCurrent: boolean): KiroUserInputMessage => {
+  const makeUserTurn = (content: string): KiroUserInputMessage => {
     const item: KiroUserInputMessage = {
       userInputMessage: {
         content,
@@ -105,26 +120,11 @@ export function requestFromOpenAI(req: OpenAIChatRequest): KiroRequest {
       item.userInputMessage.userInputMessageContext.toolResults = pendingToolResults;
       pendingToolResults = [];
     }
-    if (isCurrent) {
-      const tools = buildToolSpecs(req);
-      if (tools) item.userInputMessage.userInputMessageContext.tools = tools;
-    }
     return item;
   };
 
-  // Find the index of the last user-authored turn to use as currentMessage.
-  let lastUserIndex = -1;
-  for (let i = req.messages.length - 1; i >= 0; i--) {
-    if (req.messages[i]?.role === "user") {
-      lastUserIndex = i;
-      break;
-    }
-  }
-
-  for (let i = 0; i < req.messages.length; i++) {
-    const message = req.messages[i];
+  for (const message of req.messages) {
     if (!message) continue;
-
     if (message.role === "system" || message.role === "developer") {
       systemChunks.push(contentToText(message.content));
       continue;
@@ -138,25 +138,57 @@ export function requestFromOpenAI(req: OpenAIChatRequest): KiroRequest {
       continue;
     }
     if (message.role === "assistant") {
-      history.push(assistantToHistory(message));
+      turns.push(assistantToHistory(message));
       continue;
     }
-    // user
-    if (i === lastUserIndex) break; // handled as currentMessage below
-    history.push(flushUser(contentToText(message.content), false));
+    // user — flush any tool results accumulated since the previous turn.
+    turns.push(makeUserTurn(contentToText(message.content)));
   }
 
-  const currentSource = lastUserIndex >= 0 ? req.messages[lastUserIndex] : undefined;
+  // Tool results that arrived after the last turn (continuation with no trailing
+  // user message) become a fresh user turn so they are not lost.
+  if (pendingToolResults.length > 0) {
+    turns.push(makeUserTurn(""));
+  }
+
+  // The last user turn is the current message; the rest is history (order kept).
+  let currentIndex = -1;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i];
+    if (turn && isUserTurn(turn)) {
+      currentIndex = i;
+      break;
+    }
+  }
+
+  let current: KiroUserInputMessage;
+  const history: KiroHistoryItem[] = [];
+  if (currentIndex >= 0) {
+    current = turns[currentIndex] as KiroUserInputMessage;
+    for (let i = 0; i < turns.length; i++) {
+      if (i !== currentIndex) history.push(turns[i]!);
+    }
+  } else {
+    // No user turn at all — synthesize an empty one.
+    current = makeUserTurn("");
+    history.push(...turns);
+  }
+
+  // Tool specs + system prefix belong on the current message.
+  const tools = buildToolSpecs(req);
+  if (tools) current.userInputMessage.userInputMessageContext.tools = tools;
   const systemPrefix = systemChunks.filter(Boolean).join("\n\n");
-  const currentText = currentSource ? contentToText(currentSource.content) : "";
-  const currentContent = systemPrefix ? `${systemPrefix}\n\n${currentText}` : currentText;
+  if (systemPrefix) {
+    const existing = current.userInputMessage.content;
+    current.userInputMessage.content = existing ? `${systemPrefix}\n\n${existing}` : systemPrefix;
+  }
 
   return {
     conversationState: {
       chatTriggerType: "MANUAL",
       conversationId:
         typeof req.metadata?.conversationId === "string" ? req.metadata.conversationId : "zgate",
-      currentMessage: flushUser(currentContent, true),
+      currentMessage: current,
       history,
     },
   };

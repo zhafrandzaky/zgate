@@ -19,8 +19,8 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
-      - run: bunx tsc --noEmit
-      - run: bunx eslint .
+      - run: bun run typecheck
+      - run: bun run lint
 
   test:
     runs-on: ubuntu-latest
@@ -70,10 +70,10 @@ jobs:
       - run: bun install
       - run: cargo build --release
         working-directory: rtk
-      - run: bunx prisma generate
+      - run: bun run db:generate
       - name: Enable pgvector extension
         run: psql ${{ secrets.DATABASE_URL }} -c "CREATE EXTENSION IF NOT EXISTS vector;"
-      - run: bunx prisma migrate deploy
+      - run: bun run db:deploy
       - run: bun test
 
   build:
