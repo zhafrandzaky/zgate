@@ -12,7 +12,7 @@
  */
 
 export const brand = {
-  name: "ZGate",
+  name: "ZGATE",
 
   // Logo / wordmark
   logoCream: "#f9f4da",
